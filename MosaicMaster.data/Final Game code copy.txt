@@ -1,0 +1,948 @@
+'Libraries and globals
+Import mojo 
+Import brl
+Import tfont 
+Import OS 
+Global Game:Game_app
+
+'Main program starts here
+Function Main ()
+		Game = New Game_app
+End
+
+Global board4:Int[36] ' this is the index fo thte board for level 4
+Global board3:Int[25] ' this is the index for the board for lvl 3
+Global board1:Int[4] ' this is the index for the board for lvl 1
+Global board2:Int[9] ' this is the index for the board for lvl 2
+Global PlayerScore:GameScore[5]'this hosuld match to the num of lines in rank.txt
+
+'Main game class
+Class Game_app Extends App
+	Field GameState:String = "MENU"
+	Field difficulty = 2 'this is the num of times image gets shuffled, og kept to 1
+	Field menu:Image 'declares the menu screen image
+	Field chooseDifficulty:Image ' declares the choosing difficulty image
+	Field helpScreen:Image 'decalares the help screen image
+	Field GameOver:Image 'declares the gameOver screen
+	Field puzzle1:Image ' declares the puzzle images for lvls 1 to 3
+	Field puzzle2:Image	' although they are in class, they are rewuired for the help screen
+	Field puzzle3:Image	' so i decided to add them beside anyways
+	Field puzzle4:Image ' declares the puzzle 4 image, (used for the hint system)
+	Field LVL1Complete:Image 'loads the level 1 complete image
+	Field LVL2Complete:Image 'loads the level 2 complete image
+	Field LVL3Complete:Image 'loads the level 3 complete image
+	Field LVL4Complete:Image 'declares the level 4 complete screen
+	Field startTime:Int  = 0 ' this used to force the user to begin game state
+	Global MAXTIME:Int = 120000
+	Field level:Int = 1 ' allows lvl to increase, changing the grid size
+	Global menuSound:Sound ' declares the swap tile3/block sound from game file
+	Global swapSound:Sound ' declares the menu sound from game file
+	Global lvlCompleteSound:Sound 'declares the lvl complete Sound
+	' holds reference to instance of 'Level' class
+	Field PuzzleLVL1:Level
+	Field PuzzleLVL2:Level
+	Field PuzzleLVL3:Level	 
+	Field PuzzleLVL4:Level ' holds reference to instance of 'Level' class 
+	Global moves4:Int = 0 ' declares the num moves for level 4
+	Global moves3:Int = 0 ' This counts the moves in the game the user has for level 3
+	Global moves2:Int = 0 ' This counts the moves in the game the user has for level 2
+	Global moves1:Int = 0 ' This counts the moves in the game the user has for level 1
+	Global TOTALMOVES:Int = 0 ' This counts the moves in the game the user has in total	
+	'leaderboard variables
+	Field leaderboardMenu:Image ' declares the leaderboardMenu image
+	Field enterName:Image ' declares the entername image
+	Field enterScore:Image ' declares the enterscore image
+	Field leaderboard:Image ' declares the  leaderboard image
+	Field name:String = "" ' declares the name string
+	Field score:String = "" ' declares the score string
+	' declares the gloabl variabeles needed for fonts and gamestate
+	Global NameFont:TFont ' inbuilt monkey X class
+	Global RankFont:TFont 'used to handle fonts 
+	
+	Method OnCreate ()
+	'All the game initialisation goes in here:
+		SetUpdateRate 60 '60 frames per second
+		menu = LoadImage ("Menu.png") 'loads the menu image
+		chooseDifficulty = LoadImage("chooseDifficulty.png")'loads the choose difficulty image
+		helpScreen = LoadImage("helpScreen.png")'loads  the helpScreen image
+		puzzle1 = LoadImage("Puzzle1.png") ' used to intialise the actual puzzle images being used in game
+		puzzle2 = LoadImage("Puzzle2.png") ' intialised by image held in tile.data
+		puzzle3 = LoadImage("Puzzle3.png") '  These are used for my help screen despite being included in the class
+		puzzle4 = LoadImage("Puzzle4.png") ' declares the level 4 variable
+		LVL1Complete = LoadImage ("solved1.png")
+		LVL2Complete = LoadImage ("solved2.png")
+		LVL3Complete = LoadImage ("solved3.png")
+		LVL4Complete = LoadImage ("solved4.png") ' declares the level 4 completed screen
+		GameOver = LoadImage("GameOver.png") ' intialised the game over image to variable
+		menuSound = LoadSound("mainMenuMusic.ogg")
+		swapSound = LoadSound("tileSwapSound.ogg")
+		lvlCompleteSound = LoadSound("lvlCompleteSound.ogg")
+		Seed = Millisecs() 'random num generator
+		
+		'level 1 		
+		PuzzleLVL1 = New Level(1)' creates an instance of the level class and assigns it to varibale PuzzleLVL1
+		PuzzleLVL1.load1() ' this loads the load1 method from the class
+
+		'level 2 		
+		PuzzleLVL2 = New Level(2)' creates an instance of the level class and assigns it to varibale PuzzleLVL2
+		PuzzleLVL2.load2() ' this loads the load2 method from the class
+		
+		'level 1 		
+		PuzzleLVL3 = New Level(3)' creates an instance of the level class and assigns it to varibale PuzzleLVL3
+		PuzzleLVL3.load3() ' this loads the load3 method from the class
+		
+		' level 4
+		PuzzleLVL4 = New Level(4)' holds reference to instance of 'Level' class
+		PuzzleLVL4.load4() ' this loads the load4 method from the class		
+		
+		'leaderboard varaibles
+		leaderboardMenu = LoadImage("leaderboardMenu.png") 
+		enterName = LoadImage("enterName.png")
+		enterScore = LoadImage("enterScore.png")
+		leaderboard = LoadImage("leaderboard.png")
+		NameFont = New TFont("Helvetica.ttf", 100,[255,255,255])' the 255 means all white, 0 means all black 'OG WAS 60, []
+		RankFont = New TFont("Helvetica.ttf", 70,[255,255,255]) ' there are 3, red, green, blue              'OG WAS 40 , []
+		LoadRanking()'call the function to initialise the testscores array
+
+	' final end for onCreate()	
+	End Method 
+	
+
+	Method OnUpdate ()
+	'All the game logic goes in here:
+		Select GameState
+			Case "MENU"
+				' Play the menu sound only once when entering the "MENU" state
+            			If Not PlaySound(menuSound) Then
+               			PlaySound(menuSound, True) ' True here ensures the sound loops
+               		End 
+				'checks which option the player presses then switches to that gamestate
+				If KeyHit (KEY_SPACE) Then 
+					GameState= "CHOOSE DIFFICULTY"
+					PlaySound(menuSound)
+				End 	
+				If KeyHit (KEY_H) Then 
+					GameState="HELP" ' goes to help screen
+					PlaySound(menuSound)
+				End
+				
+				If KeyHit (KEY_O) Then 
+					GameState="GAME OVER" ' goes to gameOver screen
+				End
+				
+				If KeyHit (KEY_L) Then 
+					GameState="DISPLAY LEADERBOARD" ' goes to leaderboard screen    'og was LEADERBAORD, CHANGED ON THE 20.12.24
+					PlaySound(menuSound)
+				End
+				' this is used to force the user to bein the game if take too long in the numu screen
+				If startTime = 0 Then 
+					startTime = Millisecs() 
+				Endif 
+				If Millisecs() - startTime >= 100000 Then  'it allows the user only 45 seconds to navigate through the whole menu
+					GameState = "ENTER NAME"
+					startTime = 0
+				Endif 
+			
+			Case "CHOOSE DIFFICULTY"
+				PlaySound(menuSound)
+				If KeyHit (KEY_1) Then ' when user presses 1, difficulty set to easy
+					difficulty = 1 'this number is how many times the puzzle gets jumbled
+					GameState= "JUMBLE LVL 1"
+				End 
+				If KeyHit(KEY_2) Then  ' when user presses 2, difficulty set to medium
+					difficulty = 2 'this number is how many times the puzzle gets jumbled 
+					GameState= "JUMBLE LVL 1"
+				End
+				If KeyHit(KEY_3) Then  ' when user presses 3, difficulty set to hard
+					difficulty = 4 'this number is how many times the puzzle gets jumbled 
+					GameState= "JUMBLE LVL 1"
+				End
+
+				
+			Case "HELP"
+				If KeyHit (KEY_ENTER) Or KeyHit (KEY_ESCAPE) Then 
+					GameState="MENU" 'if player presses enter or esc then return to menu
+					PlaySound(menuSound) ' this will constantly play the music in the help screen
+				End
+				If KeyHit (KEY_1) Then ' when user presses 1, switches to this gamestate
+					GameState = "DISPLAY LVL 1"
+				End 
+				If KeyHit(KEY_2) Then  ' when user presses 2, switches to this gamestate
+					GameState = "DISPLAY LVL 2"
+				End
+				If KeyHit(KEY_3) Then  ' when user presses 3, switches to this gamestate
+					GameState = "DISPLAY LVL 3"
+				End
+				If KeyHit(KEY_4) Then  ' when user presses 4, switches to this gamestate
+					GameState = "DISPLAY LVL 4"
+				End
+				
+			Case "DISPLAY LVL 1" 'used to display the level 1 puzzle image in the help screen
+				If KeyHit(KEY_ESCAPE) Then 
+					GameState = "HELP"
+				End
+			Case "DISPLAY LVL 2" 'used to display the level 2 puzzle image in the help screen
+				If KeyHit(KEY_ESCAPE) Then 
+					GameState = "HELP"
+				End
+			Case "DISPLAY LVL 3" 'used to display the level 3 puzzle image in the help screen
+				If KeyHit(KEY_ESCAPE) Then 
+					GameState = "HELP"
+				End 
+			Case "DISPLAY LVL 4" 'used to display the level 4 puzzle image in the help screen
+				If KeyHit(KEY_ESCAPE) Then 
+					GameState = "HELP"
+				End 
+			
+			Case "GAME OVER"
+				PlaySound(swapSound)
+				'TOTALMOVES = 0						
+				If KeyHit (KEY_ENTER) Or KeyHit (KEY_ESCAPE) Then 
+					'TOTALMOVES = 0													' NEED TO TRY AND FIX THISSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
+					GameState="MENU" 'if player presses enter or esc then return to menu
+					PlaySound(swapSound)		
+				End
+				
+			Case "LEADERBOARD"
+				If KeyHit (KEY_ESCAPE) Then 
+					GameState="MENU"	'chesck if player pressed esc to return to menu
+					PlaySound(menuSound)
+				End
+				If KeyHit(KEY_1) Then 'when 1 pressed, it allows user to 
+					GameState = "ENTER NAME" ' enter their name
+				Endif 
+				
+				If KeyHit(KEY_2) Then 'when 2 pressed, it allows user to 
+					GameState = "DISPLAY LEADERBOARD" ' check the leaderboard
+				Endif 
+			Case "ENTER NAME" 
+				score = TOTALMOVES '  initialises the score varaible in 
+				If KeyHit(KEY_ESCAPE) Then ' press esc to esc name part of leaderboard
+					GameState = "LEADERBOARD" 
+				Endif 
+				While name.Length < 10 'if name length is less than 16
+					Local char = GetChar() 'get next char input
+					If Not char Exit ' if there is no input then exit
+					If char>=10 
+						name += String.FromChar(char) 'add char to the name string
+					Endif 
+				End 
+				If KeyHit(KEY_BACKSPACE) Then 'removes last char from name
+					If (name.Length>0) Then name = name[0..name.Length-1] 
+				Endif 
+				If KeyHit(KEY_ESCAPE) Then GameState = "MENU" 'esc to return to leaderboardMenu
+				'score = TOTALMOVES '  initialises the score varaible in 
+				score = TOTALMOVES '  initialises the score varaible in 
+				If KeyHit(KEY_ENTER) Then 
+					GameState = "DISPLAY LEADERBOARD" ' enter to progress the gamestate
+					writeNameAndScore(name,score)'function writes the name & score to score_file.txt 
+					UpdateScore(name,Int(score)) 'function updates the leaderboard with new score
+					name ="" 'clear name varibale
+					score="" 'clear score variable
+					'scores= bubbleSort(scores)
+				Endif 
+
+			Case "DISPLAY LEADERBOARD" 
+				TOTALMOVES = 0
+				If KeyHit(KEY_ESCAPE) Then ' if ESC pressed
+					GameState = "LEADERBOARD"	' return to leaderboardMenu
+				Endif
+				If KeyHit(KEY_ENTER) Then GameState = "MENU" 'esc to return to leaderboardMenu
+			' end of all leaderboard gamestates
+			
+
+			
+			Case "JUMBLE LVL 1" ' this uses to jumble up the image before the game starts for the user
+				For Local counter:Int = 0 To difficulty 'this would shuffle more, making the game more jumbled up each time
+					Local tile1One:Int = Rnd(0,4) ' both (0-4) as 4 is exclusive, 0 inclusive
+					Local tile1Two:Int = Rnd(0,4) ' this is the 2nd line which will swap the 1st puzzle piece with the 2nd
+					swap1(tile1One,tile1Two) ' this implements the swap function we made to acctually swap the 2 puzzle blocks together
+				Next
+				GameState="PLAYING LVL 1" ' this will allow us to staright away start the game	
+					
+			Case "PLAYING LVL 1"
+				'Handle inputs from the mouse
+				If KeyHit (KEY_ESCAPE) Then 
+					GameState="MENU"
+					PlaySound(menuSound)
+				End
+				If KeyHit (KEY_LMB) Then
+					PlaySound(swapSound)  ' plays a sound when user cliks on a tile
+					Local x:Int = (MouseX/450) ' every 450 pixels in x axis is length of 1 puzzle piece  ' 900 /2 = 450
+					Local y:Int = (MouseY/450) ' every 450 pixels in y axis is hight of 1 puzzle piece
+					Local square1:Int = y*2+x 
+					If PuzzleLVL1.selected=-1 Then
+						PuzzleLVL1.selected = square1
+					Else
+						swap1(PuzzleLVL1.selected,square1) ' swap 2 selected puzzle pieces
+						PuzzleLVL1.selected=-1
+						moves1 = moves1 + 1 ' This increments the moves counter
+					End
+				End
+				
+
+				' whilst game is still on 'not solved1', then all this code is excuted for level 1
+				' else if game is 'solved1' then moves on to level 1 complete gamestate
+				If Not solved1 Then 
+				If MAXTIME = 120000 Then 					
+					MAXTIME = Millisecs() 
+				End 
+				If Millisecs() - MAXTIME >= 120000 Then		
+					GameState = "GAME OVER" ' when the max time gets surpassed ...
+				End 							'then switches to game over
+				If MAXTIME <= 0 Then    
+					GameState = "GAME OVER" ' switch to game over game state
+				End
+				If moves1 > 5 Then			' if the player uses more than 5 moves, then game over
+					GameState = "GAME OVER" ' switch to game over game state
+				End 
+				End   
+				TOTALMOVES =  moves1
+				' Once the level is completed, it moves on to the level complete image
+ 				If solved1 Then 
+ 					PlaySound(lvlCompleteSound) ' Plays the level complete sound
+ 					GameState = "LVL 1 COMPLETE" ' switched to level complete gamestate
+ 												' this is the lvl complete screen
+ 				End 	
+ 				 
+			Case "LVL 1 COMPLETE"
+				If KeyHit(KEY_ESCAPE) Then 
+					GameState = "MENU"
+				End
+				If KeyHit(KEY_ENTER) Then 
+					GameState = "JUMBLE LVL 2"
+				End 				
+ 				
+ 				
+ 			
+			Case "JUMBLE LVL 2" ' this uses to jumble up the image before the game starts for the user
+				For Local counter:Int = 0 To difficulty 'this would shuffle more, making the game more jumbled up each time
+					Local tile2One:Int = Rnd(0,9) ' both (0-25) as 25 is exclusive, 0 inclusive
+					Local tile2Two:Int = Rnd(0,9) ' this is the 2nd line which will swap the 1st puzzle piece with the 2nd
+					swap2(tile2One,tile2Two) ' this implements the swap function we made to acctually swap the 2 puzzle blocks together
+				Next
+				GameState="PLAYING LVL 2" ' this will allow us to staright away start the game
+				
+			Case "PLAYING LVL 2"
+				'Handle inputs from the mouse
+				If KeyHit (KEY_ESCAPE) Then 
+					GameState="MENU"
+					PlaySound(menuSound)
+				End
+				If KeyHit (KEY_LMB) Then
+					PlaySound(swapSound)  ' plays a sound when user cliks on a tile
+					Local x:Int = (MouseX/300) ' every 300 pixels in x axis is length of 1 puzzle piece  '900 / 3 = 300
+					Local y:Int = (MouseY/300) ' every 300 pixels in y axis is height of 1 puzzle piece
+					Local square2:Int = y*3+x
+					If PuzzleLVL2.selected=-1 Then
+						PuzzleLVL2.selected = square2
+					Else
+						swap2(PuzzleLVL2.selected,square2) ' swap 2 selected puzzle pieces
+						PuzzleLVL2.selected=-1
+						moves2 = moves2 + 1 ' This increments the moves counter
+					End
+				End
+				
+				' whilst game is still on 'not solved2', then all this code is excuted for level 2
+				' else if game is 'solved2' then moves on to level 2 complete gamestate
+				If Not solved2 Then 
+				If MAXTIME = 120000 Then 					
+					MAXTIME = Millisecs() 
+				End 
+				If Millisecs() - MAXTIME >= 120000 Then		
+					GameState = "GAME OVER" ' when the max time gets surpassed ...
+				End 							'then switches to game over
+				If MAXTIME <= 0 Then    
+					GameState = "GAME OVER" ' switch to game over game state
+				End
+				If moves2 > 10 Then			' if the player uses more than 5 moves, then game over
+					GameState = "GAME OVER" ' switch to game over game state
+				End 
+				End 
+				TOTALMOVES = moves2 + moves1
+				' Once the level is completed, it moves on to the level complete image
+ 				If solved2 Then 
+ 					PlaySound(lvlCompleteSound) ' Plays the level complete sound
+ 					GameState = "LVL 2 COMPLETE" ' switched to level complete gamestate
+ 												' this is the lvl complete screen
+ 				End
+ 				
+			Case "LVL 2 COMPLETE"
+				If KeyHit(KEY_ESCAPE) Then 
+					GameState = "MENU"
+				End 
+				If KeyHit(KEY_ENTER) Then ' if press enter, then moves onto next level
+					GameState = "JUMBLE LVL 3"
+				End
+				
+
+ 				
+			Case "JUMBLE LVL 3" ' this uses to jumble up the image before the game starts for the user
+				For Local counter:Int = 0 To difficulty 'this would shuffle more, making the game more jumbled up each time
+					Local tile3One:Int = Rnd(0,25) ' both (0-25) as 25 is exclusive, 0 inclusive
+					Local tile3Two:Int = Rnd(0,25) ' this is the 2nd line which will swap the 1st puzzle piece with the 2nd
+					swap3(tile3One,tile3Two) ' this implements the swap function we made to acctually swap the 2 puzzle blocks together
+				Next
+				GameState="PLAYING LVL 3" ' this will allow us to staright away start the game
+				
+			Case "PLAYING LVL 3"
+				'Handle inputs from the mouse
+				If KeyHit (KEY_ESCAPE) Then 
+					GameState="MENU"
+					PlaySound(menuSound)
+				End
+				If KeyHit (KEY_LMB) Then
+					PlaySound(swapSound)  ' plays a sound when user cliks on a tile
+					Local x:Int = (MouseX/180) ' every 180 pixels in x axis is length of 1 puzzle piece  '900 / 3 = 300
+					Local y:Int = (MouseY/180) ' every 180 pixels in y axis is height of 1 puzzle piece 
+					Local square3:Int = y*5+x
+					If PuzzleLVL3.selected=-1 Then
+						PuzzleLVL3.selected = square3
+					Else
+						swap3(PuzzleLVL3.selected,square3)' swap 2 selected puzzle pieces
+						PuzzleLVL3.selected=-1
+						moves3 = moves3 + 1  ' increments the num \moves counter
+					End 
+				End
+				
+				' whilst game is still on 'not solved3', then all this code is excuted for level 3
+				' else if game is 'solved3' then moves on to level 3 complete gamestate
+				If Not solved3 Then 
+				If MAXTIME = 120000 Then 					
+					MAXTIME = Millisecs() 
+				End 
+				If Millisecs() - MAXTIME >= 120000 Then		
+					GameState = "GAME OVER" ' when the max time gets surpassed ...
+				End 							'then switches to game over
+				If MAXTIME <= 0 Then    
+					GameState = "GAME OVER" ' switch to game over game state
+				End
+				If moves3 > 20 Then			' if the player uses more than 5 moves, then game over
+					GameState = "GAME OVER" ' switch to game over game state
+				End 				
+				End 
+				TOTALMOVES = moves1 + moves2 + moves3
+				' Once the level is completed, it moves on to the level complete image
+ 				If solved3 Then
+ 					PlaySound(lvlCompleteSound) ' Plays the level complete sound
+ 					GameState = "LVL 3 COMPLETE" ' switched to level complete gamestate
+ 												' this is the lvl complete screen
+ 				End
+
+			Case "LVL 3 COMPLETE"
+				If KeyHit(KEY_ESCAPE) Then 
+					GameState = "MENU"
+				End 
+				If KeyHit (KEY_ENTER) Then ' if press entered then diplay enter name option
+					GameState = "JUMBLE LVL 4"
+				End
+				'TOTALMOVES = 0 'resets the total score so next user can get an accurate score DOESNT WORK THO
+				'moves = 0 ' restart the moves counter, after each level
+
+
+				
+			Case "JUMBLE LVL 4" ' this uses to jumble up the image before the game starts for the user
+				For Local counter:Int = 0 To difficulty 'this would shuffle more, making the game more jumbled up each time
+					Local tile4One:Int = Rnd(0,36) ' both (0-25) as 25 is exclusive, 0 inclusive
+					Local tile4Two:Int = Rnd(0,36) ' this is the 2nd line which will swap the 1st puzzle piece with the 2nd
+					swap4(tile4One,tile4Two) ' this implements the swap function we made to acctually swap the 2 puzzle blocks together
+				Next
+				GameState="PLAYING LVL 4" ' this will allow us to staright away start the game
+				
+			Case "PLAYING LVL 4"
+				'Handle inputs from the mouse
+				If KeyHit (KEY_ESCAPE) Then 
+					GameState="MENU"
+					PlaySound(menuSound)
+				End
+				If KeyHit (KEY_LMB) Then 'When pressed left click on the mouse
+					PlaySound(swapSound)  ' plays a sound when user cliks on a tile
+					Local x:Int = (MouseX/150)' every 150 pixels in x axis is length of 1 puzzle piece  '900 / 6 = 150
+					Local y:Int = (MouseY/150)' every 150 pixels in y axis is height of 1 puzzle piece
+					Local square4:Int = y*6+x 
+					If PuzzleLVL4.selected=-1 Then
+						PuzzleLVL4.selected = square4
+					Else
+						swap4(PuzzleLVL4.selected,square4) ' swaps the 2 selected puzzle pieces
+						PuzzleLVL4.selected=-1
+						moves4 = moves4 + 1 ' increments the moves counter for this level
+					End 
+				End
+				
+				' whilst game is still on 'not solved4', then all this code is excuted for level 4
+				' else if game is 'solved4' then moves on to level 4 complete gamestate
+				If Not solved4 Then 
+				If MAXTIME = 120000 Then 	' 120000 millisecs is 120 seconds, 2 mins				
+					MAXTIME = Millisecs() 
+				End 
+				If Millisecs() - MAXTIME >= 120000 Then		
+					GameState = "GAME OVER" ' when the max time gets surpassed ...
+				End 							'then switches to game over
+				If MAXTIME <= 0 Then    
+					GameState = "GAME OVER" ' switch to game over game state
+				End
+				If moves4 > 30 Then			' if the player uses more than 30 moves, then game over
+					GameState = "GAME OVER" ' switch to game over game state
+				End 				
+				End 
+				TOTALMOVES = moves1 + moves2 + moves3 + moves4
+				' Once the level is completed, it moves on to the level complete image
+ 				If solved4 Then
+ 					PlaySound(lvlCompleteSound) ' Plyas the level complete sound
+ 					GameState = "LVL 4 COMPLETE"
+ 				End 
+ 				
+ 				
+			Case "LVL 4 COMPLETE"
+				If KeyHit(KEY_ESCAPE) Then  ' if esc pressed, return to main menu
+					GameState = "MENU"
+				End 
+				If KeyHit (KEY_ENTER) Then ' if press entered then diplay enter name option
+					GameState = "ENTER NAME"
+				End
+				moves1 = 0   ' all moves from each level are intialised to 0
+				moves2 = 0   ' this is so that it allows the 2nd player to play game with 
+				moves3 = 0   ' accurate score in each level
+				moves4 = 0
+				'TOTALMOVES = 0 ' this resets the total score right at the end of the game
+								' this causes the next player to have a proper and accurate score 
+								' when diaplyed in the leaderboard
+
+				
+		End
+	'final end for onUpdate()	
+	End Method 
+
+	Method OnRender ()
+	'All the graphics drawing goes in here:
+		Select GameState
+			Case "MENU"
+				DrawImage menu, 0,0 ' this displays the menu image
+			Case "CHOOSE DIFFICULTY"
+				DrawImage chooseDifficulty, 0,0 ' this dispalys the choosing difficulty image
+			Case "HELP"
+				DrawImage helpScreen, 0,0 'this adds the help screen image
+			Case "DISPLAY LVL 1"
+				DrawImage puzzle1, 0,0 ' this adds the puzzle 1 image for the viewer to see in the helps screen
+			Case "DISPLAY LVL 2"
+				DrawImage puzzle2, 0,0 ' this adds the puzzle 2 image for the viewer to see in the helps screen
+			Case "DISPLAY LVL 3"
+				DrawImage puzzle3, 0,0 ' this adds the puzzle 3 image for the viewer to see in the helps screen
+			Case "DISPLAY LVL 4"
+				DrawImage puzzle4, 0,0 ' this adds the puzzle 3 image for the viewer to see in the helps screen
+			Case "GAME OVER"
+				DrawImage GameOver, 0,0 'this adds the help screen image
+						' leaderboard gamestates
+			Case "LEADERBOARD"
+				DrawImage leaderboardMenu, 0,0 'display the leaderboardMenu image 
+			Case "ENTER NAME"
+				Cls 0,0,0
+				DrawImage enterName, 0,0 'display enterName image
+				NameFont.DrawText(name, 250,380 ) ' x y coords to place the name   ' OG WAS 120 , 190
+			Case "DISPLAY LEADERBOARD"
+				Cls 0,0,0
+				DrawImage leaderboard, 0,0 
+				For Local rank=0 Until 5 'loop through top 5 ranks, made sure to keep same num as rank.txt file
+					RankFont.DrawText(""+(rank+1)+") "+ PlayerScore[rank].name+" : "+PlayerScore[rank].score,200,250+(rank*130))  ' OG WAS 100,130+(rank*75))
+				Next 							'disply the rank number, player name and score
+			
+			
+			Case "PLAYING LVL 1"
+				Cls 0, 0, 0
+				PuzzleLVL1.Draw1()
+				Scale 2,2	' width, height 
+				DrawText ("NUM OF MOVES: " + (moves1) ,180,0) '  this prints the number of moves onto the display
+				TIMER()
+
+			Case "LVL 1 COMPLETE"
+				DrawImage puzzle1, 0,0	' this dispalys the unjumbled image in the background
+				DrawImage LVL1Complete, 0,0 'display the completed level 1 image
+			
+			Case "PLAYING LVL 2"
+				Cls 0, 0, 0
+				PuzzleLVL2.Draw2()
+				Scale 2,2	' width, height 
+				DrawText ("NUM OF MOVES: " + (moves2) ,180,0) '  this prints the number of moves onto the display
+				TIMER()
+				
+			Case "LVL 2 COMPLETE"
+				DrawImage puzzle2, 0,0 ' This is to have the unjumbled puzzle in the background
+				DrawImage LVL2Complete, 0,0 'display the completed level 1 image
+				
+			Case "PLAYING LVL 3"
+				Cls 0, 0, 0
+				PuzzleLVL3.Draw3()
+				Scale 2,2	' width, height 
+				DrawText ("NUM OF MOVES: " + (moves3) ,180,0) '  this prints the number of moves onto the display
+				TIMER()
+				
+			Case "LVL 3 COMPLETE"
+				DrawImage puzzle3, 0,0 ' This is to have the unjumbled puzzle in the background
+				DrawImage LVL3Complete, 0,0 'display the completed level 1 image
+
+			Case "PLAYING LVL 4"
+				Cls 0, 0, 0
+				PuzzleLVL4.Draw4() ' displays the class method 'Draw4'
+				Scale 2,2	' width, height 
+				DrawText ("NUM OF MOVES: " + (moves4) ,180,0) '  this prints the number of moves onto the display
+				TIMER()
+
+			Case "LVL 4 COMPLETE"
+				DrawImage puzzle4, 0,0 ' This is to have the unjumbled puzzle in the background
+				DrawImage LVL4Complete, 0,0 'display the completed level 4 image
+
+						
+		End Select 'ends the select game states
+		
+	'final end for onRender()			
+	End Method 
+	
+' ALL FUNCTIONS ARE HERE 
+
+	' function for swapping in lvl 4
+	Function swap4(a:Int,b:Int)  'this function swaps the 2 puzzle board3 pieces being clicked
+		Local temp:Int=board4[a] ' very similar to bubble sort algorythm
+		board4[a]=board4[b]       ' as it initialises 1 puzzle peice to the one selected before
+		board4[b]=temp			'even uses temp local variable to take place of new puzzle piece
+	End
+
+	' function for swapping in lvl 3
+	Function swap3(a:Int,b:Int)  'this function swaps the 2 puzzle board3 pieces being clicked
+		Local temp:Int=board3[a] ' very similar to bubble sort algorythm
+		board3[a]=board3[b]       ' as it initialises 1 puzzle peice to the one selected before
+		board3[b]=temp			'even uses temp local variable to take place of new puzzle piece
+	End
+	
+	' function for swapping in lvl 2
+	Function swap2(a:Int,b:Int)  'this function swaps the 2 puzzle board1 pieces being clicked
+		Local temp:Int=board2[a] ' very similar to bubble sort algorythm
+		board2[a]=board2[b]       ' as it initialises 1 puzzle peice to the one selected before
+		board2[b]=temp			'even uses temp local variable to take place of new puzzle piece
+	End
+
+	' function for swapping in lvl 1
+	Function swap1(a:Int,b:Int)  'this function swaps the 2 puzzle board1 pieces being clicked
+		Local temp:Int=board1[a] ' very similar to bubble sort algorythm
+		board1[a]=board1[b]       ' as it initialises 1 puzzle peice to the one selected before
+		board1[b]=temp			'even uses temp local variable to take place of new puzzle piece
+	End
+
+	'function for solving in lvl 4
+	'Each board position is checked to see if it holds the same tile number as it's index. If any don't match then the puzzle has not been solved.	
+	Function solved4:Bool()
+		Local all_match:Bool = True
+		For Local check_tile4:Int = 0 To 35 'level four has 36 tiles so it checks each 36 of them individually, 0 being inclusive
+			If board4[check_tile4]<>check_tile4 Then all_match = False ' if tile not matched then still jumbled
+		Next
+		Return all_match
+	End
+
+	'function for solving in lvl 3
+	'Each board position is checked to see if it holds the same tile number as it's index. If any don't match then the puzzle has not been solved.	
+	Function solved3:Bool()
+		Local all_match:Bool = True
+		For Local check_tile3:Int = 0 To 24 'level to has 25 tiles so it checks each 25 of them individually
+			If board3[check_tile3]<>check_tile3 Then all_match = False ' if tile not matched then still jumbled
+		Next
+		Return all_match
+	End
+	
+	'function for solving in lvl 2
+	'Each board position is checked to see if it holds the same tile number as it's index. If any don't match then the puzzle has not been solved.	
+	Function solved2:Bool()
+		Local all_match:Bool = True
+		For Local check_tile2:Int = 0 To 8 'level two has 9 tiles so it checks each 9 of them individually
+			If board2[check_tile2]<>check_tile2 Then all_match = False  'if tile not match then still jumbled
+		Next
+		Return all_match
+	End
+	
+	'function for solving in lvl 1
+	'Each board position is checked to see if it holds the same tile number as it's index. If any don't match then the puzzle has not been solved.	
+	Function solved1:Bool()
+		Local all_match:Bool = True
+		For Local check_tile1:Int = 0 To 3 'level to has 4 tiles so it checks each 4 of them individually
+			If board1[check_tile1]<>check_tile1 Then all_match = False ' if tile not matched then still jumbled
+		Next
+		Return all_match
+	End
+	
+	' WORKS IF DEIDE TO ONLY HAVE 1 TIMER FUNCTION
+	Function TIMER : Float() ' new function created to implement a countdown timer function
+		Local maxTime:Int = 120000 ' this is to set where the countdown will start from, from 2 mins to be used throughout all 3 levels
+		Local timeRemaining:Int = (maxTime/1000 - (Millisecs()/1000))
+		Local scoreRemaining:Int = TOTALMOVES
+		If (Millisecs() / 1000) <= maxTime Then 'when timer countdown reaches the maximum time for the 3 levels it will stop excecuting lines of code
+			'Scale 2,2 (length , height) TEXT SCALER ALREADY BEING USED IN ABOVE CODE SO NO NEED TO INCREASE
+			DrawText ("TIMER : " + (timeRemaining) + " seconds",10,0) ' the timer will dispaly a countdown from 120 seconds
+			DrawText ("Score : "+ (scoreRemaining)+ " points", 330,0) ' as timer counts down the score will aslo start count down
+		If timeRemaining <= 0 Then ' once the timer is completed 
+			timeRemaining = 0 'resets the time remaining
+			scoreRemaining = 0	'resets the score remenaing
+			DrawText ("-------TIME COMPLETE-------",0,0) ' diaplys the time limit reached to alert the user 
+			DrawText ("-------TIME COMPLETE-------",350,0)	'displays the time limit reached to alert the user 
+		End 
+		End
+	
+	End
+	
+
+	'LEADERBOARD FUNCTIONS 
+	Function bubbleSort:GameScore[](list:GameScore[])
+		Local size:Int = list.Length	'length of list
+		Local swapped:Bool = True	'to go into loop
+		Local count:Int = 0	'number of passes
+		
+			While (count <= size-1) And (swapped = True)	'while not all players are checked
+				swapped = False									'no swaps yet made
+				For Local index = 0 Until (size-(count+1))		'goes through all players individually 
+					If list[index].score < list[index+1].score Then	'checks if 1st score is less than 2nd score
+						swapped = True								'then the swap takes place
+						'player positions swapped if yes
+						Local tempScore:Int = list[index].score	'to temporarily hold values of player name + score for swap
+						Local tempName:String = list[index].name
+						list[index].score = list[index+1].score		'swaps score
+						list[index].name = list[index+1].name		'swaps name
+						list[index+1].score = tempScore
+						list[index+1].name = tempName
+					Endif
+				Next
+				count += 1 ' moves onto next index in array
+			End
+		Return list
+	End
+
+	Function writeNameAndScore:Int(name:String, score:String)'function writes name and score to score_file
+		Local score_file:FileStream
+						' this is the file path to the score file txt, which gets appended
+		score_file = FileStream.Open("C:\Users\parvs\OneDrive\Desktop\my puzzle game\7274_H446_CourseWork_Parv Shah\7274_H446_Mosaic Master_Parv Shah\MosaicMaster.data\score_File.txt","a")
+		score_file.WriteString(score+"," + name + "~r~n") ' write the score and name to the file, seperate by comma and newline
+		score_file.Close ' closes trhe file
+		Return 1
+	End Function 
+	
+	' Function to load ranking data from file and transfer it to PlayerScore array
+	Function LoadRanking() 
+		Local score_file:FileStream 'declares the following local variables for this function
+		Local scores_data:String 
+		Local index:Int 
+		Local itemCount:Int 
+		Local name:String 
+		Local mark:Int 
+			' this is the file path for the rank txt, it opens the file in read mode 
+		score_file = FileStream.Open("C:\Users\parvs\OneDrive\Desktop\my puzzle game\7274_H446_CourseWork_Parv Shah\7274_H446_Mosaic Master_Parv Shah\MosaicMaster.data\rank.txt","r")
+		'reads the entire contetn of the file as a single string
+		scores_data = score_file.ReadString() 
+		'closes the file after reading
+		score_file.Close() 
+		
+		'intialise index For storing scores in testScores arrays
+		index = 0 ' bottom line: loops each line in score_file
+		For Local score:String = Eachin scores_data.Split("~n") 
+			itemCount = 0 
+			For Local item:String = Eachin score.Split(",") ' loop through each item in line, split by comma
+				If itemCount = 0 Then 
+					mark = Int(item) ' convert the score to int and store in mark
+				End 
+				If itemCount =1 Then ' if itemCount = 1 then 
+					name = item 		' store name in name variable 
+				End
+				itemCount += 1'increment item counter
+			Next 
+			'Store the score and name in the PlayerScore array as new GameScore object
+			PlayerScore[index] = New GameScore(mark,name) 
+			index += 1	'increment index 
+		Next 
+	End Function	
+	
+	'Function unpdates rank file if score is within the top 5
+	Function UpdateScore:Void(St_name:String,St_score:Int)
+		Local count:Int   'array index variable
+		Local score_file:FileStream  'file stream variable
+		Local score_data:String 'file string variable
+		
+		count =-1'count initialised
+		'identifies rank position and score added to rank file
+		Repeat
+			count+=1
+			'checks if new score is above the score at this array position
+			If St_score>PlayerScore[count].score Then	'St_score>PlayerScore[count].score IS FOR DESCENDING ORDER
+				'contents of array are reassigned to make space for the new score
+				For Local row = 4 Until 0 Step - 1   ' shift entires down to make room for the new score in the top 5 rank
+					PlayerScore[row].score = PlayerScore[row-1].score
+					PlayerScore[row].name = PlayerScore[row-1].name
+				Next
+				'now new score and name are in allocated array position
+				PlayerScore[count].score = St_score
+				PlayerScore[count].name = St_name
+				count = 4 ' stops further replacement after top 5 rank are processed
+			Endif
+		Until (count = 4) ' changed to stop after reaching the 5th rank
+		'updates ranking in the file
+		score_file = FileStream.Open("C:\Users\parvs\OneDrive\Desktop\my puzzle game\7274_H446_CourseWork_Parv Shah\7274_H446_Mosaic Master_Parv Shah\MosaicMaster.data\rank.txt","w") 'rank.txt","w"  i had kept as score_file, a
+		
+		'How contents are written in the rank file
+		For Local row= 0 Until 5 'for top 5 rank
+			If row < 4 Then ' 0 is inlcusive so that means we limit to 4  <=4
+				score_file.WriteString(PlayerScore[row].score +","+PlayerScore[row].name+"~n")
+			Else
+				score_file.WriteString(PlayerScore[row].score+","+PlayerScore[row].name)
+			Endif
+		Next
+		'File closed
+		score_file.Close()
+	End Function 
+	
+	
+'final end
+End
+
+' ALL CLASSES AS HERE, CLASSES FOR DIFF LEVELS AND LEADERBOARD
+
+Class Level ' this is the class used for all the levels in the game
+	Field puzzle:Image ' declares the general puzzle images
+	Field square:Image ' declares the general sqaure images
+	Field square_selected:Image ' declares the general sqaure selected images
+	Field solvedPic:Image '  declares the solvedpic images 
+	Field tile3:Image[25] ' this is the index for the tile for lvl 3
+	Field tile1:Image[4] ' this is the index for the tile for lvl 1
+	Field tile2:Image[9] ' this is the index for the tile for lvl 2 
+	Field tile4:Image[36] 'this is the index for the tile for lvl 4
+	Field selected:Int = -1
+	
+	Method New(level_num:Int) ' used to load images required for the game/initlises object
+		puzzle = LoadImage("Puzzle" + Int(level_num) + ".png") ' this puzzle variable can be used for all levels 
+	    square = LoadImage("square" + Int(level_num) + ".png") ' this sqaure variable, used for all variables 
+	    square_selected = LoadImage ("selected" + Int(level_num) + ".png") 'this square selected variables can be used For all variables 
+	    solvedPic = LoadImage("solved" + Int(level_num) + ".png")'this solved pic varaibale can be used for all levels
+	End Method
+	
+	
+	Method load1()
+			Local x:Int = 0
+			Local y:Int = 0 
+			For Local num:Int = 0 To 3 ' this creates a small loop to map each of the individual tiles
+				tile1[num] = puzzle.GrabImage(x,y,450,450)	'into the grid of the game display 
+				board1[num] = num
+				x=x+450 ' since in level 1, its a 2x2 then every 450 pixels , theres 2 tiles in x axis
+				If x = 900 Then'max tiles is 2 in x axis  so  450 * 2 = 900 pixels
+					x=0
+					y=y+450'increments the y axis now , just like the same for x axis
+				End
+			Next
+	End Method 
+	
+	Method load2()
+			Local x:Int = 0
+			Local y:Int = 0
+			For Local num:Int = 0 To 8' this creates a small loop to map each of the individual tiles
+				tile2[num] = puzzle.GrabImage(x,y,300,300) 'into the grid of the game display 
+				board2[num] = num
+				x=x+300 ' since in level 2, its a 3x3 then every 300 pixels , theres 3 tiles in x axis
+				If x = 900 Then'max tiles is 3 in x axis  so  300 * 3 = 900 pixels
+					x=0
+					y=y+300 'increments the y axis now, just like the same for x axis 
+				End
+			Next
+	End Method 
+		
+	Method load3()
+			Local x:Int = 0
+			Local y:Int = 0
+			For Local num:Int = 0 To 24' this creates a small loop to map each of the individual tiles
+				tile3[num] = puzzle.GrabImage(x,y,180,180)'into the grid of the game display
+				board3[num] = num
+				x=x+180 ' since in level 3, its a 5x5 then every 180 pixels , theres 5 tiles in x axis
+				If x = 900 Then 'max tiles is 5 in x axis  so  180 * 5 = 900
+					x=0
+					y=y+180 'increments the y axis now, just like the same for x axis 
+				End
+			Next 
+	End  Method 
+	
+	Method load4()
+			Local x:Int = 0
+			Local y:Int = 0
+			For Local num:Int = 0 To 35' this creates a small loop to map each of the individual tiles
+				tile4[num] = puzzle.GrabImage(x,y,150,150)'into the grid of the game display
+				board4[num] = num
+				x=x+150 ' since in level 4, its a 6x6 then every 150 pixels , theres 6 tiles in x axis
+				If x = 900 Then 'max tiles is 6 in x axis  so  150*6 = 900,
+					x=0
+					y=y+150 'increments the y axis now, just like the same for x axis 
+				End
+			Next 
+	End  Method 
+	
+	Method Draw1() ' this method will be places in the onRender method in main code and is to display level 1
+			Local x:Int = 0 ' initialising the x plane on the display
+			Local y:Int = 0 ' initialising the y plane on the dispalay
+			For Local num =0 To 3 'there are 4 tiles,we use 0 as its inclusive in iteration
+					DrawImage tile1[board1[num]],x*450,y*450 ' 900 / 2 = 450 pixels
+					DrawImage square,x*450,y*450 ' this draws a small sqaure, which helps for a grid like look for our game
+					If num = selected Then DrawImage square_selected,x*450,y*450' this is to indicate which position on the grid user is clicking
+					x = x + 1 'as the grid increments in x axis
+					If x = 2 Then ' grid max is 2 as 2*450 = 900(max res)
+						y = y + 1 'it checks x axis first then y 
+						x = 0
+					End
+			Next
+	End Method
+		
+	Method Draw2() ' this method will be places in the onRender method in main code and is to display level 2 
+			Local x:Int = 0 ' initialising the x plane on the display
+			Local y:Int = 0 ' initialising the y plane on the dispalay
+			For Local num:Int =0 To 8 'there are 9 tiles,we use 0 as its inclusive in iteration
+					DrawImage tile2[board2[num]],x*300,y*300 ' 900 / 3 = 300 pixels
+					DrawImage square,x*300,y*300 ' this draws a small sqaure, which helps for a grid like look for our game
+					If num = selected Then DrawImage square_selected,x*300,y*300' this is to indicate which position on the grid user is clicking
+					x = x + 1 'as the grid increments in x axis
+					If x = 3 Then ' grid max is 3 as 3*300 =900(max res)
+						y = y + 1 'it checks x axis first then y 
+						x = 0
+					End
+			Next  
+	End Method 
+	
+	
+	Method Draw3() ' this method will be places in the onRender method in main code and is to display level 3
+			Local x:Int = 0 ' initialising the x plane on the display
+			Local y:Int = 0 ' initialising the y plane on the dispalay
+			For Local num:Int =0 To 24 'there are 25 tiles,we use 0 as its inclusive in iteration
+					DrawImage tile3[board3[num]],x*180,y*180 ' 900 / 5 = 180 pixels
+					DrawImage square,x*180,y*180 ' this draws a small sqaure, which helps for a grid like look for our game
+					If num = selected Then DrawImage square_selected,x*180,y*180' this is to indicate which position on the grid user is clicking
+					x = x + 1 'as the grid increments in x axis
+					If x = 5 Then ' grid max is 5 as 5*180 = 900(max res)
+						y = y + 1 'it checks x axis first then y 
+						x = 0
+					End
+			Next ' once each tile is checked to see if its in the correct position
+	End Method 	
+
+	Method Draw4() ' this method will be places in the onRender method in main code and is to display level 4
+			Local x:Int = 0 ' initialising the x plane on the display
+			Local y:Int = 0 ' initialising the y plane on the dispalay
+			For Local num:Int =0 To 35 'there are 36 tiles,we use 0 as its inclusive in iteration
+					DrawImage tile4[board4[num]],x*150,y*150 ' 900 / 6 = 150 pixels
+					DrawImage square,x*150,y*150 ' this draws a small sqaure, which helps for a grid like look for our game
+					If num = selected Then DrawImage square_selected,x*150,y*150' this is to indicate which position on the grid user is clicking
+					x = x + 1 'as the grid increments in x axis
+					If x = 6 Then ' grid max is 6 as 6*150 = 900(max res) 
+						y = y + 1 'it checks x axis first then y 
+						x = 0
+					End
+			Next ' once each tile is checked to see if its in the correct position
+	End Method 	
+End Class ' final method so end class
+
+'to create the objects for the test scores array
+Class GameScore 
+	Field score:Int 
+	Field name:String 
+	'constructor for creating new object
+	Method New(score:Int,name:String)
+		Self.score = score
+		Self.name = name 
+	End 
+End Class

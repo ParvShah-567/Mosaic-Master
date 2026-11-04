@@ -1,0 +1,5 @@
+0,niga
+7,parv
+12,Mark
+12,Mark
+15,P4rv

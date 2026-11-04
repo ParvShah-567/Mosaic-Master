@@ -1,0 +1,170 @@
+working code:
+
+
+Import mojo 
+Import brl
+Import tfont 
+Import OS 
+
+Global Assessment:Game_app
+
+Function Main()
+	Assessment = New Game_app
+End 
+'test score array for the ranking
+Global TestScores:Computing[3]
+
+Class Game_app Extends App
+	Field menu:Image 
+	Field enterName:Image
+	Field enterScore:Image 
+	Field leaderboard:Image
+	Field name:String = "" 
+	Field score:String = ""
+	
+	Global GameState:String  = "MENU" 
+	Global NameFont:TFont
+	Global RankFont:TFont
+	
+	Method OnCreate() 
+		menu = LoadImage("menu.png") 
+		enterName = LoadImage("enterName.png")
+		enterScore = LoadImage("enterScore.png")
+		leaderboard = LoadImage("leaderboard.png")
+		NameFont = New TFont("Helvetica.ttf", 75,[0,0,0])
+		RankFont = New TFont("Helvetica.ttf", 50,[0,0,0]) 
+		LoadRanking()'call the function to initialise the testscores array
+	End 
+	
+	Method OnUpdate()
+		Select GameState 
+			Case "MENU" 
+				If KeyHit(KEY_1) Then 
+					GameState = "NAME" 
+				Endif 
+				
+				If KeyHit(KEY_2) Then 
+					GameState = "LEADERBOARD" 
+				Endif 
+				
+				If KeyHit(KEY_ESCAPE) Then 
+					ExitApp(0) 
+				Endif 
+			
+			Case "NAME" 
+				If KeyHit(KEY_ESCAPE) Then 
+					GameState = "MENU" 
+				Endif 
+				While name.Length < 16 
+					Local char = GetChar() 
+					If Not char Exit 
+					If char>=32 
+						name += String.FromChar(char) 
+					Endif 
+				End 
+				If KeyHit(KEY_BACKSPACE) Then 
+					If (name.Length>0) Then name = name[0..name.Length-1] 
+				Endif 
+				If KeyHit(KEY_ENTER) Then 
+					GameState = "SCORE" 
+				Endif 
+			Case "SCORE" 
+				If KeyHit(KEY_ESCAPE) Then GameState = "MENU"
+				If KeyHit(KEY_N) Then GameState = "NAME"
+				While score.Length<4
+					Local char=GetChar() 
+					If Not char Exit 
+					If char>= 48 And char<= 57
+						score += String.FromChar(char) 
+					Endif 
+				End 
+				If KeyHit (KEY_BACKSPACE) Then 
+					If (score.Length>0) Then score = score[0..score.Length-1] 
+				Endif  
+				If KeyHit(KEY_ENTER) Then 
+					writeNameAndScore(name,score) 
+					name ="" 
+					score=""
+				Endif 
+			Case "LEADERBOARD" 
+				If KeyHit(KEY_ESCAPE) Then 
+					GameState = "MENU"
+				Endif				  
+		End Select 
+	End
+	
+	
+	Method OnRender() 
+		Select GameState 
+			Case "MENU" 
+				DrawImage menu, 0,0
+			Case "NAME"
+				Cls 0,0,0
+				DrawImage enterName, 0,0
+				NameFont.DrawText(name, 300, 300) 
+			Case "SCORE"
+				Cls 0,0,0 
+				DrawImage enterScore, 0,0
+				NameFont.DrawText(score,300,300) 
+			Case "LEADERBOARD"
+				Cls 0,0,0
+				DrawImage leaderboard, 0,0 
+				For Local rank=0 Until 3 
+					RankFont.DrawText(""+(rank+1)+") "+ TestScores[rank].name+": "+TestScores[rank].score,300,300+(rank*100))
+				Next 	
+		End Select 
+	End 
+End 
+'to create the objects for the test scores array
+Class Computing 
+	Field score:Int 
+	Field name:String 
+	'constructor for creating new object
+	Method New(score:Int,name:String)
+		Self.score = score
+		Self.name = name 
+	End 
+End Class 
+
+Function writeNameAndScore:Int(name:String, score:String) 
+	Local score_file:FileStream
+					' this is the file path to the score file txt 
+	score_file = FileStream.Open("C:\Users\parvs\OneDrive\Desktop\my puzzle game\leaderboard\leaderboard\leaderboard\leaderboard.data\score_File.txt","a")
+	
+	score_file.WriteString(score+","+name+"~r~n")
+	
+	score_file.Close
+	Return 1
+End 	
+'transfer the rank file data to test score array
+Function LoadRanking() 
+	Local score_file:FileStream
+	Local scores_data:String 
+	Local index:Int 
+	Local itemCount:Int 
+	Local name:String 
+	Local mark:Int 
+					' this is the file path for the rank txt
+	score_file = FileStream.Open("C:\Users\parvs\OneDrive\Desktop\my puzzle game\leaderboard\leaderboard\leaderboard\leaderboard.data\rank.txt","r")
+	'extract the filecontent as a string
+	scores_data = score_file.ReadString() 
+	'closes the file
+	score_file.Close() 
+	
+	'linear seacrhhhh for scores
+	index = 0 
+	For Local score:String = Eachin scores_data.Split("~n") 
+		itemCount = 0 
+		For Local item:String = Eachin score.Split(",") 
+			If itemCount = 0 Then 
+				mark = Int(item)
+			End 
+			If itemCount =1 Then 
+				name = item 
+			End
+			itemCount += 1
+		Next 
+		TestScores[index] = New Computing(mark,name) 
+		index += 1
+	Next 
+End 
